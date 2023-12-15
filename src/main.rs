@@ -196,7 +196,6 @@ fn get_input_with(prompt: &str, start_val: Option<&str>) -> io::Result<String> {
         stdout.execute(Clear(ClearType::UntilNewLine))?;
         let cursor_pos = cursor::position()?.0;
         print!("{}", buf.get(pos..).unwrap());
-        // io::Write::flush(stdout)?;
         stdout.execute(cursor::MoveToColumn(cursor_pos))?;
         Ok(())
     };
@@ -219,6 +218,14 @@ fn get_input_with(prompt: &str, start_val: Option<&str>) -> io::Result<String> {
         Ok(())
     };
 
+    let insert_char = |buf: &mut String, stdout: &mut Stdout, c: char| -> io::Result<()> {
+        buf.insert(cursor_pos()?.into(), c);
+        print!("{}", c);
+        refresh_after_cursor(buf, stdout, cursor_pos()?.into())?;
+        io::Write::flush(stdout)?;
+        Ok(())
+    };
+
     let cancel = |buf: &mut String, stdout: &mut Stdout| -> io::Result<()> {
         stdout.execute(Clear(ClearType::CurrentLine))?;
         buf.clear();
@@ -230,12 +237,7 @@ fn get_input_with(prompt: &str, start_val: Option<&str>) -> io::Result<String> {
             if let Event::Key(e) = read()? {
                 if e.modifiers == KeyModifiers::NONE {
                     match e.code {
-                        KeyCode::Char(c) => {
-                            buf.insert(cursor_pos()?.into(), c);
-                            print!("{}", c);
-                            refresh_after_cursor(&mut buf, &mut stdout, cursor_pos()?.into())?;
-                            io::Write::flush(&mut stdout)?;
-                        }
+                        KeyCode::Char(c) => insert_char(&mut buf, &mut stdout, c)?,
                         KeyCode::Enter => break,
                         KeyCode::Backspace => {
                             bs(&mut buf, &mut stdout)?;
@@ -293,6 +295,8 @@ fn get_input_with(prompt: &str, start_val: Option<&str>) -> io::Result<String> {
                         }
                         _ => ()
                     }
+                } else if let KeyCode::Char(c) = e.code {
+                    insert_char(&mut buf, &mut stdout, c)?;
                 }
             }
         }
