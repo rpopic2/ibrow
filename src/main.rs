@@ -26,8 +26,11 @@ fn main() -> std::io::Result<()> {
     let mut cur_line = 0u16;
     let mut history: History = History::new();
 
+    let mut bookmark_path = home::home_dir().unwrap();
+    bookmark_path.push("ibrow.conf");
+    let bookmark_path = bookmark_path.into_os_string();
     let mut bookmark = String::new();
-    if let Ok(mut f) = File::open("ibrow.conf") {
+    if let Ok(mut f) = File::open(&bookmark_path) {
         f.read_to_string(&mut bookmark).unwrap();
     }
 
@@ -160,7 +163,7 @@ fn main() -> std::io::Result<()> {
     }
     disable_raw_mode()?;
 
-    let mut bm = File::create("ibrow.conf").expect("failed to create config file");
+    let mut bm = File::create(bookmark_path).expect("failed to create config file");
     use std::io::Write;
     write!(&mut bm, "{}", bookmark).expect("failed to write config file");
 
