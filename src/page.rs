@@ -1,10 +1,23 @@
+use crate::pager;
 use crossterm::style::Stylize;
 use std::fmt::Write;
 
 pub struct Page {
     pub buf: String,
     pub line_count: usize,
+    pub url: String,
     pub anchors: Vec<String>,
+}
+
+impl Page {
+    pub fn new() -> Page {
+        Page {
+            buf: String::new(),
+            line_count: 0,
+            url: String::new(),
+            anchors: Vec::new(),
+        }
+    }
 }
 
 pub fn get_processed_page(page: &str) -> Page {
@@ -31,10 +44,16 @@ pub fn get_processed_page(page: &str) -> Page {
             break;
         }
     }
-    let count = buf.lines().count();
+    let line_count = buf.lines().count();
+    let idx = page.rfind('\n').unwrap();
+    let url = page.get(idx + 2..).unwrap().to_string();
+    println!("{}", url);
+
+    pager::pager(&buf, 0).unwrap();
     Page {
         buf,
-        line_count: count,
+        line_count,
+        url,
         anchors,
     }
 }

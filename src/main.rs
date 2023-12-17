@@ -16,20 +16,35 @@ mod input;
 mod page;
 mod pager;
 
+struct History {
+    pages: Vec<Page>,
+}
+
+impl History {
+    fn new() -> History {
+        let mut pages = Vec::new();
+        pages.push(Page::new());
+        History { pages }
+    }
+
+    fn last(&self) -> &Page {
+        self.pages.last().unwrap()
+    }
+
+    fn push(&mut self, page: Page) {
+        self.pages.push(page);
+    }
+}
+
 fn main() -> std::io::Result<()> {
     let mut stdout = std::io::stdout();
     stdout.execute(EnterAlternateScreen)?;
     let mut screen_size: (u16, u16) = terminal::size().unwrap();
 
-    let mut cur_url = String::new();
     let mut cur_line = 0u16;
-    let mut bookmark = String::new();
-    let mut cur_page: Page = Page {
-        buf: String::new(),
-        line_count: 0,
-        anchors: Vec::new(),
-    };
+    let mut history: History = History::new();
 
+    let mut bookmark = String::new();
     if let Ok(mut f) = File::open("ibrow.conf") {
         f.read_to_string(&mut bookmark).unwrap();
     }
@@ -53,22 +68,22 @@ fn main() -> std::io::Result<()> {
                     KeyCode::Char('e') => {
                         cur_line = cur_line
                             .saturating_add(1)
-                            .clamp(0, (cur_page.line_count as u16) - 1);
-                        pager::pager(&cur_page.buf, cur_line)?;
+                            .clamp(0, (history.last().line_count as u16) - 1);
+                        pager::pager(&history.last().buf, cur_line)?;
                     }
                     KeyCode::Char('y') => {
                         cur_line = cur_line.saturating_sub(1);
-                        pager::pager(&cur_page.buf, cur_line)?;
+                        pager::pager(&history.last().buf, cur_line)?;
                     }
                     KeyCode::Char('f') => {
                         cur_line = cur_line
                             .saturating_add(screen_size.1 / 2)
-                            .clamp(0, cur_page.line_count as u16 - 1);
-                        pager::pager(&cur_page.buf, cur_line)?;
+                            .clamp(0, history.last().line_count as u16 - 1);
+                        pager::pager(&history.last().buf, cur_line)?;
                     }
                     KeyCode::Char('b') => {
                         cur_line = cur_line.saturating_sub(screen_size.1 / 2);
-                        pager::pager(&cur_page.buf, cur_line)?;
+                        pager::pager(&history.last().buf, cur_line)?;
                     }
                     _ => (),
                 }
@@ -83,8 +98,7 @@ fn main() -> std::io::Result<()> {
                             Ok(mut file) => {
                                 let mut buf = String::new();
                                 file.read_to_string(&mut buf)?;
-                                cur_page = get_processed_page(&buf);
-                                pager::pager(&cur_page.buf, 0)?;
+                                history.push(get_processed_page(&buf));
                             }
                             Err(_) => {
                                 println!("could not find file");
@@ -97,36 +111,29 @@ fn main() -> std::io::Result<()> {
                             Ok(s) => s,
                             Err(_) => continue,
                         };
-                        cur_url = url;
-                        let buf = go_url(&cur_url)?;
-                        cur_page = get_processed_page(&buf);
-                        pager::pager(&cur_page.buf, 0)?;
-                        stdout.execute(cursor::MoveToColumn(0))?;
+                        let buf = go_url(&url)?;
+                        history.push(get_processed_page(&buf));
                     }
                     KeyCode::Char('d') => {
                         let Ok(data) = get_input("data: ") else {
                             continue;
                         };
-                        let buf = post(&cur_url, &data)?;
-                        cur_page = get_processed_page(&buf);
-                        pager::pager(&cur_page.buf, 0)?;
-                        stdout.execute(cursor::MoveToColumn(0))?;
+                        let buf = post(&history.last().url, &data)?;
+                        history.push(get_processed_page(&buf));
                     }
                     KeyCode::Char('m') => {
-                        bookmark = match get_input_with("bookmark: ", Some(&cur_url)) {
+                        bookmark = match get_input_with("bookmark: ", Some(&history.last().url)) {
                             Ok(s) => s,
                             Err(_) => continue,
                         }
                     }
                     KeyCode::Char('`') => {
-                        cur_url = match get_input_with("goto: ", Some(&bookmark)) {
+                        let url = match get_input_with("goto: ", Some(&bookmark)) {
                             Ok(s) => s,
                             Err(_) => continue,
                         };
-                        let buf = go_url(&cur_url)?;
-                        let page = get_processed_page(&buf);
-                        pager::pager(&page.buf, 0)?;
-                        stdout.execute(cursor::MoveToColumn(0))?;
+                        let buf = go_url(&url)?;
+                        history.push(get_processed_page(&buf));
                     }
                     KeyCode::Char('a') => {
                         let Ok(s) = get_input("anchor(index): ") else {
@@ -135,34 +142,30 @@ fn main() -> std::io::Result<()> {
                         let Ok(index) = s.parse::<usize>() else {
                             continue;
                         };
-                        let Some(url) = cur_page.anchors.get(index) else {
+                        let Some(url) = history.last().anchors.get(index) else {
                             continue;
                         };
                         let url = if url.starts_with('/') {
                             let mut mod_url = url.to_owned();
-                            mod_url.insert_str(0, &cur_url);
+                            mod_url.insert_str(0, &history.last().url);
                             mod_url
                         } else {
                             url.to_string()
                         };
                         let buf = go_url(&url)?;
-                        cur_page = get_processed_page(&buf);
-                        pager::pager(&cur_page.buf, 0)?;
-                        stdout.execute(cursor::MoveToColumn(0))?;
+                        history.push(get_processed_page(&buf));
                     }
                     _ => (),
                 }
             } else {
                 match ev.code {
                     KeyCode::Char('G') => {
-                        cur_url = match get_input_with("goto: ", Some(&cur_url)) {
+                        let url = match get_input_with("goto: ", Some(&history.last().url)) {
                             Ok(s) => s,
                             Err(_) => continue,
                         };
-                        let buf = go_url(&cur_url)?;
-                        cur_page = get_processed_page(&buf);
-                        pager::pager(&cur_page.buf, 0)?;
-                        stdout.execute(cursor::MoveToColumn(0))?;
+                        let buf = go_url(&url)?;
+                        history.push(get_processed_page(&buf));
                     }
                     _ => (),
                 }
@@ -179,14 +182,14 @@ fn main() -> std::io::Result<()> {
     Ok(())
 }
 
-fn go_url(url: &String) -> io::Result<String> {
+fn go_url(url: &str) -> io::Result<String> {
     println!("{}", url);
-    curl(["-#", "-L", &url])
+    curl(["-#", "-w %{url_effective}", "-L", url])
 }
 
-fn post(url: &String, data: &str) -> io::Result<String> {
+fn post(url: &str, data: &str) -> io::Result<String> {
     println!("{}, {}", url, data);
-    curl(["-#", "-d", data, "-L", &url])
+    curl(["-#", "-w %{url_effective}", "-L", url, "-d", data])
 }
 
 fn curl<I, S>(args: I) -> io::Result<String>
