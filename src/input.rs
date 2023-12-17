@@ -1,11 +1,11 @@
-use std::io::{self, Stdout, Error};
+use std::io::{self, Error, Stdout};
 use std::process::Command;
 use std::time::Duration;
 
+use crossterm::cursor;
 use crossterm::event::{poll, read, Event, KeyCode, KeyModifiers};
 use crossterm::terminal::{Clear, ClearType};
 use crossterm::{ExecutableCommand, QueueableCommand};
-use crossterm::cursor;
 
 pub fn get_input(prompt: &str) -> io::Result<String> {
     get_input_with(prompt, None)
@@ -24,28 +24,26 @@ pub fn get_input_with(prompt: &str, start_val: Option<&str>) -> io::Result<Strin
             print!("{}", val);
             String::from(val)
         }
-        None => String::new()
+        None => String::new(),
     };
     io::Write::flush(&mut stdout)?;
 
+    let cursor_pos = || -> io::Result<u16> { Ok(cursor::position()?.0 - cursor_zero) };
 
-    let cursor_pos = || -> io::Result<u16> {
-        Ok(cursor::position()?.0 - cursor_zero)
-    };
-
-    let refresh_after_cursor = |buf: &mut String, stdout: &mut Stdout, pos: usize| -> io::Result<()> {
-        stdout.execute(Clear(ClearType::UntilNewLine))?;
-        let cursor_pos = cursor::position()?.0;
-        print!("{}", buf.get(pos..).unwrap());
-        stdout.execute(cursor::MoveToColumn(cursor_pos))?;
-        Ok(())
-    };
+    let refresh_after_cursor =
+        |buf: &mut String, stdout: &mut Stdout, pos: usize| -> io::Result<()> {
+            stdout.execute(Clear(ClearType::UntilNewLine))?;
+            let cursor_pos = cursor::position()?.0;
+            print!("{}", buf.get(pos..).unwrap());
+            stdout.execute(cursor::MoveToColumn(cursor_pos))?;
+            Ok(())
+        };
 
     let bs = |buf: &mut String, stdout: &mut Stdout| -> io::Result<()> {
         let cursor_pos = cursor::position()?.0;
         let remove_pos = cursor_pos - cursor_zero;
         if remove_pos <= 0 {
-            return Ok(())
+            return Ok(());
         }
         buf.remove((remove_pos - 1).into());
         stdout.execute(cursor::MoveLeft(1))?;
@@ -91,7 +89,7 @@ pub fn get_input_with(prompt: &str, start_val: Option<&str>) -> io::Result<Strin
                         let mut ls = Command::new("ls");
                         let dir = match buf.is_empty() {
                             true => ".",
-                            false => &buf
+                            false => &buf,
                         };
                         ls.args(["-m", dir]);
                         let pos = cursor::position()?;
@@ -99,10 +97,10 @@ pub fn get_input_with(prompt: &str, start_val: Option<&str>) -> io::Result<Strin
                         ls.status().expect("ls failed");
                         stdout.execute(cursor::MoveTo(pos.0, pos.1))?;
                     }
-                    _ => ()
+                    _ => (),
                 }
                 continue;
-            } else if e.modifiers == KeyModifiers::CONTROL || e.modifiers ==  KeyModifiers::SHIFT {
+            } else if e.modifiers == KeyModifiers::CONTROL || e.modifiers == KeyModifiers::SHIFT {
                 match e.code {
                     KeyCode::Char('j') | KeyCode::Char('m') => break,
                     KeyCode::Char('c') => {
@@ -135,7 +133,7 @@ pub fn get_input_with(prompt: &str, start_val: Option<&str>) -> io::Result<Strin
                         let pos = cursor_zero + buf.len() as u16;
                         stdout.execute(cursor::MoveToColumn(pos))?;
                     }
-                    _ => ()
+                    _ => (),
                 }
             } else if let KeyCode::Char(c) = e.code {
                 insert_char(&mut buf, &mut stdout, c)?;
@@ -151,4 +149,3 @@ pub fn get_input_with(prompt: &str, start_val: Option<&str>) -> io::Result<Strin
     }
     Ok(buf)
 }
-

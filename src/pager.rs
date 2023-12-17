@@ -1,6 +1,10 @@
 use std::io;
 
-use crossterm::{terminal::{ClearType, disable_raw_mode, enable_raw_mode, Clear, self}, ExecutableCommand, cursor};
+use crossterm::{
+    cursor,
+    terminal::{self, disable_raw_mode, enable_raw_mode, Clear, ClearType},
+    ExecutableCommand,
+};
 
 pub fn pager(buf: &String, line: u16) -> io::Result<()> {
     let mut stdout = io::stdout();
@@ -28,4 +32,3 @@ pub fn pager(buf: &String, line: u16) -> io::Result<()> {
     enable_raw_mode()?;
     Ok(())
 }
-

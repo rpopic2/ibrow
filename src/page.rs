@@ -1,13 +1,13 @@
-use std::fmt::Write;
 use crossterm::style::Stylize;
+use std::fmt::Write;
 
-pub struct ProcessedPage {
+pub struct Page {
     pub buf: String,
     pub line_count: usize,
     pub anchors: Vec<String>,
 }
 
-pub fn get_processed_page(page: &str) -> ProcessedPage {
+pub fn get_processed_page(page: &str) -> Page {
     let curl_out = page.replace("&nbsp;", "\u{A0}");
     let curl_out = curl_out.replace("&quot;", "\"");
     let mut iter = curl_out.split(|c| c == '<');
@@ -25,12 +25,18 @@ pub fn get_processed_page(page: &str) -> ProcessedPage {
             input_group = cur_input_group;
             write_elem(i, &mut buf, &mut anchors);
         } else {
-            if input_group { writeln!(&mut buf).unwrap(); }
+            if input_group {
+                writeln!(&mut buf).unwrap();
+            }
             break;
         }
     }
     let count = buf.lines().count();
-    ProcessedPage{ buf, line_count: count, anchors }
+    Page {
+        buf,
+        line_count: count,
+        anchors,
+    }
 }
 
 fn write_elem(s: &str, buf: &mut String, anchors: &mut Vec<String>) {
@@ -60,9 +66,7 @@ fn write_elem(s: &str, buf: &mut String, anchors: &mut Vec<String>) {
             write!(buf, "{}", s.bold()).unwrap();
         }
     } else if s.starts_with("script") || s.starts_with("style") {
-
     } else if s.starts_with("option") {
-
     } else if s.starts_with("tr") {
         writeln!(buf).unwrap();
     } else if s.starts_with("a ") {
@@ -83,8 +87,7 @@ fn write_elem(s: &str, buf: &mut String, anchors: &mut Vec<String>) {
 fn print_rest(s: &str, buf: &mut String) {
     if let Some(tag_end) = s.find('>') {
         let tag_end = tag_end + 1;
-        let text = s.get(tag_end..).unwrap()
-            .split_terminator(&['\n', '\r']);
+        let text = s.get(tag_end..).unwrap().split_terminator(&['\n', '\r']);
         for s in text {
             write!(buf, "{}", s).unwrap();
         }
@@ -108,7 +111,7 @@ fn get_attr<'a>(input: &'a str, attr: &'a str) -> Option<&'a str> {
         let first_quote = s1.find(is_quote);
         let (first_quote, next_query): (usize, Pred) = match first_quote {
             Some(_) => (first_quote.unwrap() + 1, is_quote),
-            None => (0usize, is_space)
+            None => (0usize, is_space),
         };
         let s2 = s1.get(first_quote..).unwrap();
         let second_quote = s2.find(next_query).unwrap();
