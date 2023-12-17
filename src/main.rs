@@ -28,120 +28,116 @@ fn main() -> std::io::Result<()> {
     enable_raw_mode()?;
     loop {
         if poll(Duration::from_millis(1000))? {
-            if let Event::Key(ev) = read()? {
-                if ev.modifiers == KeyModifiers::CONTROL {
-
-
-                    match ev.code {
-                        KeyCode::Char('c') => break,
-
-                        KeyCode::Char('e') => {
-                            cur_line = cur_line.saturating_add(1).clamp(0, (cur_page.line_count as u16) - 1);
-                            pager(&cur_page.buf, cur_line, screen_size)?;
-                        }
-                        KeyCode::Char('y') => {
-                            cur_line = cur_line.saturating_sub(1);
-                            pager(&cur_page.buf, cur_line, screen_size)?;
-                        }
-                        KeyCode::Char('f') => {
-                            cur_line = cur_line.saturating_add(screen_size.1 / 2).clamp(0, cur_page.line_count as u16 - 1);
-                            pager(&cur_page.buf, cur_line, screen_size)?;
-                        }
-                        KeyCode::Char('b') => {
-                            cur_line = cur_line.saturating_sub(screen_size.1 / 2);
-                            pager(&cur_page.buf, cur_line, screen_size)?;
-                        }
-                        _ => ()
+            let Ok(Event::Key(ev)) = read() else { continue; };
+            if ev.modifiers == KeyModifiers::CONTROL {
+                match ev.code {
+                    KeyCode::Char('c') => break,
+                    KeyCode::Char('e') => {
+                        cur_line = cur_line.saturating_add(1).clamp(0, (cur_page.line_count as u16) - 1);
+                        pager(&cur_page.buf, cur_line, screen_size)?;
                     }
-                } else if ev.modifiers == KeyModifiers::NONE {
-                    match ev.code {
-                        KeyCode::Char('f') => {
-                            let path = match get_input("files: ") {
-                                Ok(s) => s,
-                                Err(_) => continue
-                            };
-                            match File::open(path) {
-                                Ok(mut file) => {
-                                    let mut buf = String::new();
-                                    file.read_to_string(&mut buf)?;
-                                    cur_page = get_processed_page(&buf);
-                                    pager(&cur_page.buf, 0, screen_size)?;
-                                }
-                                Err(_) => {
-                                    println!("could not find file");
-                                }
+                    KeyCode::Char('y') => {
+                        cur_line = cur_line.saturating_sub(1);
+                        pager(&cur_page.buf, cur_line, screen_size)?;
+                    }
+                    KeyCode::Char('f') => {
+                        cur_line = cur_line.saturating_add(screen_size.1 / 2).clamp(0, cur_page.line_count as u16 - 1);
+                        pager(&cur_page.buf, cur_line, screen_size)?;
+                    }
+                    KeyCode::Char('b') => {
+                        cur_line = cur_line.saturating_sub(screen_size.1 / 2);
+                        pager(&cur_page.buf, cur_line, screen_size)?;
+                    }
+                    _ => ()
+                }
+            } else if ev.modifiers == KeyModifiers::NONE {
+                match ev.code {
+                    KeyCode::Char('f') => {
+                        let path = match get_input("files: ") {
+                            Ok(s) => s,
+                            Err(_) => continue
+                        };
+                        match File::open(path) {
+                            Ok(mut file) => {
+                                let mut buf = String::new();
+                                file.read_to_string(&mut buf)?;
+                                cur_page = get_processed_page(&buf);
+                                pager(&cur_page.buf, 0, screen_size)?;
                             }
-                            stdout.execute(cursor::MoveToColumn(0))?;
-                        }
-                        KeyCode::Char('g') => {
-                            let url = match get_input("goto: ") {
-                                Ok(s) => s,
-                                Err(_) => continue
-                            };
-                            cur_url = url;
-                            let buf = go_url(&cur_url)?;
-                            cur_page = get_processed_page(&buf);
-                            pager(&cur_page.buf, 0, screen_size)?;
-                            stdout.execute(cursor::MoveToColumn(0))?;
-                        }
-                        KeyCode::Char('d') => {
-                            let data = match get_input("data: ") {
-                                Ok(s) => s,
-                                Err(_) => continue
-                            };
-                            let buf = post(&cur_url, &data)?;
-                            cur_page = get_processed_page(&buf);
-                            pager(&cur_page.buf, 0, screen_size)?;
-                            stdout.execute(cursor::MoveToColumn(0))?;
-                        }
-                        KeyCode::Char('m') => {
-                            bookmark = match get_input_with("bookmark: ", Some(&cur_url)) {
-                                Ok(s) => s,
-                                Err(_) => continue
+                            Err(_) => {
+                                println!("could not find file");
                             }
                         }
-                        KeyCode::Char('`') => {
-                            cur_url = match get_input_with("goto: ", Some(&bookmark)) {
-                                Ok(s) => s,
-                                Err(_) => continue
-                            };
-                            let buf = go_url(&cur_url)?;
-                            let page = get_processed_page(&buf);
-                            pager(&page.buf, 0, screen_size)?;
-                            stdout.execute(cursor::MoveToColumn(0))?;
-                        }
-                        KeyCode::Char('a') => {
-                            let Ok(s) = get_input("anchor(index): ") else { continue };
-                            let Ok(index) = s.parse::<usize>() else { continue };
-                            let Some(url) = cur_page.anchors.get(index) else { continue; };
-                            let url = if url.starts_with('/') {
-                                let mut mod_url = url.to_owned();
-                                mod_url.insert_str(0, &cur_url);
-                                mod_url
-                            } else {
-                                url.to_string()
-                            };
-                            let buf = go_url(&url)?;
-                            cur_page = get_processed_page(&buf);
-                            pager(&cur_page.buf, 0, screen_size)?;
-                            stdout.execute(cursor::MoveToColumn(0))?;
-                        }
-                        _ => ()
+                        stdout.execute(cursor::MoveToColumn(0))?;
                     }
-                } else {
-                    match ev.code {
-                        KeyCode::Char('G') => {
-                            cur_url = match get_input_with("goto: ", Some(&cur_url)) {
-                                Ok(s) => s,
-                                Err(_) => continue
-                            };
-                            let buf = go_url(&cur_url)?;
-                            cur_page = get_processed_page(&buf);
-                            pager(&cur_page.buf, 0, screen_size)?;
-                            stdout.execute(cursor::MoveToColumn(0))?;
-                        }
-                        _ => ()
+                    KeyCode::Char('g') => {
+                        let url = match get_input("goto: ") {
+                            Ok(s) => s,
+                            Err(_) => continue
+                        };
+                        cur_url = url;
+                        let buf = go_url(&cur_url)?;
+                        cur_page = get_processed_page(&buf);
+                        pager(&cur_page.buf, 0, screen_size)?;
+                        stdout.execute(cursor::MoveToColumn(0))?;
                     }
+                    KeyCode::Char('d') => {
+                        let data = match get_input("data: ") {
+                            Ok(s) => s,
+                            Err(_) => continue
+                        };
+                        let buf = post(&cur_url, &data)?;
+                        cur_page = get_processed_page(&buf);
+                        pager(&cur_page.buf, 0, screen_size)?;
+                        stdout.execute(cursor::MoveToColumn(0))?;
+                    }
+                    KeyCode::Char('m') => {
+                        bookmark = match get_input_with("bookmark: ", Some(&cur_url)) {
+                            Ok(s) => s,
+                            Err(_) => continue
+                        }
+                    }
+                    KeyCode::Char('`') => {
+                        cur_url = match get_input_with("goto: ", Some(&bookmark)) {
+                            Ok(s) => s,
+                            Err(_) => continue
+                        };
+                        let buf = go_url(&cur_url)?;
+                        let page = get_processed_page(&buf);
+                        pager(&page.buf, 0, screen_size)?;
+                        stdout.execute(cursor::MoveToColumn(0))?;
+                    }
+                    KeyCode::Char('a') => {
+                        let Ok(s) = get_input("anchor(index): ") else { continue };
+                        let Ok(index) = s.parse::<usize>() else { continue };
+                        let Some(url) = cur_page.anchors.get(index) else { continue; };
+                        let url = if url.starts_with('/') {
+                            let mut mod_url = url.to_owned();
+                            mod_url.insert_str(0, &cur_url);
+                            mod_url
+                        } else {
+                            url.to_string()
+                        };
+                        let buf = go_url(&url)?;
+                        cur_page = get_processed_page(&buf);
+                        pager(&cur_page.buf, 0, screen_size)?;
+                        stdout.execute(cursor::MoveToColumn(0))?;
+                    }
+                    _ => ()
+                }
+            } else {
+                match ev.code {
+                    KeyCode::Char('G') => {
+                        cur_url = match get_input_with("goto: ", Some(&cur_url)) {
+                            Ok(s) => s,
+                            Err(_) => continue
+                        };
+                        let buf = go_url(&cur_url)?;
+                        cur_page = get_processed_page(&buf);
+                        pager(&cur_page.buf, 0, screen_size)?;
+                        stdout.execute(cursor::MoveToColumn(0))?;
+                    }
+                    _ => ()
                 }
             }
         }
@@ -250,70 +246,70 @@ fn get_input_with(prompt: &str, start_val: Option<&str>) -> io::Result<String> {
 
     loop {
         if poll(Duration::from_millis(1000))? {
-            if let Event::Key(e) = read()? {
-                if e.modifiers == KeyModifiers::NONE {
-                    match e.code {
-                        KeyCode::Char(c) => insert_char(&mut buf, &mut stdout, c)?,
-                        KeyCode::Enter => break,
-                        KeyCode::Backspace => {
-                            bs(&mut buf, &mut stdout)?;
-                        }
-                        KeyCode::Esc => {
-                            cancel(&mut buf, &mut stdout)?;
-                            break;
-                        }
-                        KeyCode::Tab => {
-                            let mut ls = Command::new("ls");
-                            let dir = match buf.is_empty() {
-                                true => ".",
-                                false => &buf
-                            };
-                            ls.args(["-m", dir]);
-                            let pos = cursor::position()?;
-                            stdout.execute(cursor::MoveTo(0, pos.1 + 1))?;
-                            ls.status().expect("ls failed");
-                            stdout.execute(cursor::MoveTo(pos.0, pos.1))?;
-                        }
-                        _ => ()
+            let Event::Key(e) = read()? else { continue };
+            if e.modifiers == KeyModifiers::NONE {
+                match e.code {
+                    KeyCode::Char(c) => insert_char(&mut buf, &mut stdout, c)?,
+                    KeyCode::Enter => break,
+                    KeyCode::Backspace => {
+                        bs(&mut buf, &mut stdout)?;
                     }
-                    continue;
-                } else if e.modifiers == KeyModifiers::CONTROL {
-                    match e.code {
-                        KeyCode::Char('j') | KeyCode::Char('m') => break,
-                        KeyCode::Char('c') => {
-                            cancel(&mut buf, &mut stdout)?;
-                            break;
-                        }
-                        KeyCode::Char('h') => {
-                            bs(&mut buf, &mut stdout)?;
-                        }
-                        KeyCode::Char('u') => {
-                            buf.clear();
-                            stdout.queue(cursor::MoveToColumn(cursor_zero))?;
-                            stdout.execute(Clear(ClearType::UntilNewLine))?;
-                        }
-                        KeyCode::Char('b') => {
-                            if cursor_pos()? > 0 {
-                                stdout.execute(cursor::MoveLeft(1))?;
-                            }
-                        }
-                        KeyCode::Char('f') => {
-                            if (cursor_pos()? as usize) < buf.len() {
-                                stdout.execute(cursor::MoveRight(1))?;
-                            }
-                        }
-                        KeyCode::Char('a') => {
-                            stdout.execute(cursor::MoveToColumn(cursor_zero))?;
-                        }
-                        KeyCode::Char('e') => {
-                            let pos = cursor_zero + buf.len() as u16;
-                            stdout.execute(cursor::MoveToColumn(pos))?;
-                        }
-                        _ => ()
+                    KeyCode::Esc => {
+                        cancel(&mut buf, &mut stdout)?;
+                        break;
                     }
-                } else if let KeyCode::Char(c) = e.code {
-                    insert_char(&mut buf, &mut stdout, c)?;
+                    KeyCode::Tab => {
+                        let mut ls = Command::new("ls");
+                        let dir = match buf.is_empty() {
+                            true => ".",
+                            false => &buf
+                        };
+                        ls.args(["-m", dir]);
+                        let pos = cursor::position()?;
+                        stdout.execute(cursor::MoveTo(0, pos.1 + 1))?;
+                        ls.status().expect("ls failed");
+                        stdout.execute(cursor::MoveTo(pos.0, pos.1))?;
+                    }
+                    _ => ()
                 }
+                continue;
+            } else if e.modifiers == KeyModifiers::CONTROL || e.modifiers ==  KeyModifiers::SHIFT {
+                match e.code {
+                    KeyCode::Char('j') | KeyCode::Char('m') => break,
+                    KeyCode::Char('c') => {
+                        cancel(&mut buf, &mut stdout)?;
+                        break;
+                    }
+                    KeyCode::Char('h') => {
+                        bs(&mut buf, &mut stdout)?;
+                    }
+                    KeyCode::Char('u') => {
+                        buf = buf.get(..cursor_pos()? as usize).unwrap().to_string();
+                        println!("buf: {}", buf);
+                        stdout.queue(cursor::MoveToColumn(cursor_zero))?;
+                        stdout.execute(Clear(ClearType::UntilNewLine))?;
+                    }
+                    KeyCode::Char('b') => {
+                        if cursor_pos()? > 0 {
+                            stdout.execute(cursor::MoveLeft(1))?;
+                        }
+                    }
+                    KeyCode::Char('f') => {
+                        if (cursor_pos()? as usize) < buf.len() {
+                            stdout.execute(cursor::MoveRight(1))?;
+                        }
+                    }
+                    KeyCode::Char('a') => {
+                        stdout.execute(cursor::MoveToColumn(cursor_zero))?;
+                    }
+                    KeyCode::Char('e') => {
+                        let pos = cursor_zero + buf.len() as u16;
+                        stdout.execute(cursor::MoveToColumn(pos))?;
+                    }
+                    _ => ()
+                }
+            } else if let KeyCode::Char(c) = e.code {
+                insert_char(&mut buf, &mut stdout, c)?;
             }
         }
     }
@@ -384,7 +380,7 @@ fn get_processed_page(page: &str) -> ProcessedPage {
     let curl_out = curl_out.replace("&quot;", "\"");
     let mut iter = curl_out.split(|c| c == '<');
 
-    let mut anchors: Vec<String> = vec![];
+    let mut anchors: Vec<String> = Vec::new();
 
     let mut input_group = false;
     let mut buf = String::new();
