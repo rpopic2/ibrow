@@ -3,14 +3,14 @@ use std::io;
 use crossterm::{
     cursor,
     terminal::{self, disable_raw_mode, enable_raw_mode, Clear, ClearType},
-    ExecutableCommand,
+    ExecutableCommand, QueueableCommand,
 };
 
 pub fn pager(buf: &String, line: u16) -> io::Result<()> {
     let mut stdout = io::stdout();
-    // stdout.execute(cursor::MoveTo(offset.0, offset.1))?;
-    stdout.execute(Clear(ClearType::FromCursorDown))?;
     stdout.execute(cursor::SavePosition)?;
+    stdout.execute(cursor::MoveToColumn(0))?;
+    stdout.execute(Clear(ClearType::CurrentLine))?;
     disable_raw_mode()?;
 
     let (screen_width, screen_height) = terminal::size()?;
@@ -20,13 +20,16 @@ pub fn pager(buf: &String, line: u16) -> io::Result<()> {
     let mut counter = 0usize;
     while counter < screen_height {
         if let Some(s) = lines.next() {
-            let wraps = s.len() / screen_width + 1;
+            // let wraps = s.len() / screen_width + 1;
             println!("{}", s);
-            counter += wraps;
+            // stdout.queue(cursor::MoveToColumn(0))?;
+            stdout.execute(Clear(ClearType::CurrentLine))?;
+            counter += 1;// wraps;
         } else {
             break;
         }
     }
+    stdout.execute(Clear(ClearType::FromCursorDown))?;
 
     stdout.execute(cursor::RestorePosition)?;
     enable_raw_mode()?;

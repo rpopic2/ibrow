@@ -46,7 +46,7 @@ pub fn get_processed_page(page: &str) -> Page {
     }
     let line_count = buf.lines().count();
     let idx = page.rfind('\n').unwrap();
-    let url = page.get(idx + 2..).unwrap().to_string();
+    let url = page.get(idx + 2..).unwrap_or_default().to_string();
     println!("{}", url);
 
     pager::pager(&buf, 0).unwrap();

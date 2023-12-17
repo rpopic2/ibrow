@@ -111,10 +111,12 @@ pub fn get_input_with(prompt: &str, start_val: Option<&str>) -> io::Result<Strin
                         bs(&mut buf, &mut stdout)?;
                     }
                     KeyCode::Char('u') => {
-                        buf = buf.get(..cursor_pos()? as usize).unwrap().to_string();
-                        println!("buf: {}", buf);
+                        buf = buf.get(cursor_pos()? as usize..).unwrap().to_string();
                         stdout.queue(cursor::MoveToColumn(cursor_zero))?;
-                        stdout.execute(Clear(ClearType::UntilNewLine))?;
+                        stdout.queue(Clear(ClearType::UntilNewLine))?;
+                        print!("{}", buf);
+                        stdout.queue(cursor::MoveToColumn(cursor_zero))?;
+                        io::Write::flush(&mut stdout)?;
                     }
                     KeyCode::Char('b') => {
                         if cursor_pos()? > 0 {
