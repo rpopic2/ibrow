@@ -1,6 +1,6 @@
 use std::fs::File;
-use std::io::{self, prelude::*, Error, Stdout};
 use std::fmt::Write;
+use std::io::{self, prelude::*, Error, Stdout};
 use std::time::Duration;
 use std::process::Command;
 use colored::Colorize;
@@ -17,10 +17,9 @@ fn main() -> std::io::Result<()> {
     let screen_size = terminal::size()?;
 
     let mut cur_url = String::new();
-    let mut cur_buf = String::new();
     let mut cur_line = 0u16;
-    let mut buf_line_len = 0usize;
     let mut bookmark = String::new();
+    let mut cur_page: ProcessedPage = ProcessedPage{buf: String::new(), line_count: 0, anchors: Vec::new()};
 
     if let Ok(mut f) = File::open("ibrow.conf") {
         f.read_to_string(&mut bookmark).unwrap();
@@ -31,24 +30,26 @@ fn main() -> std::io::Result<()> {
         if poll(Duration::from_millis(1000))? {
             if let Event::Key(ev) = read()? {
                 if ev.modifiers == KeyModifiers::CONTROL {
+
+
                     match ev.code {
                         KeyCode::Char('c') => break,
 
                         KeyCode::Char('e') => {
-                            cur_line = cur_line.saturating_add(1).clamp(0, (buf_line_len as u16) - 1);
-                            pager(&cur_buf, cur_line, screen_size)?;
+                            cur_line = cur_line.saturating_add(1).clamp(0, (cur_page.line_count as u16) - 1);
+                            pager(&cur_page.buf, cur_line, screen_size)?;
                         }
                         KeyCode::Char('y') => {
                             cur_line = cur_line.saturating_sub(1);
-                            pager(&cur_buf, cur_line, screen_size)?;
+                            pager(&cur_page.buf, cur_line, screen_size)?;
                         }
                         KeyCode::Char('f') => {
-                            cur_line = cur_line.saturating_add(screen_size.1 / 2).clamp(0, buf_line_len as u16 - 1);
-                            pager(&cur_buf, cur_line, screen_size)?;
+                            cur_line = cur_line.saturating_add(screen_size.1 / 2).clamp(0, cur_page.line_count as u16 - 1);
+                            pager(&cur_page.buf, cur_line, screen_size)?;
                         }
                         KeyCode::Char('b') => {
                             cur_line = cur_line.saturating_sub(screen_size.1 / 2);
-                            pager(&cur_buf, cur_line, screen_size)?;
+                            pager(&cur_page.buf, cur_line, screen_size)?;
                         }
                         _ => ()
                     }
@@ -63,15 +64,14 @@ fn main() -> std::io::Result<()> {
                                 Ok(mut file) => {
                                     let mut buf = String::new();
                                     file.read_to_string(&mut buf)?;
-                                    (cur_buf, buf_line_len) = get_processed_page(&buf);
-                                    pager(&cur_buf, 0, screen_size)?;
-                                    stdout.execute(cursor::MoveToColumn(0))?;
+                                    cur_page = get_processed_page(&buf);
+                                    pager(&cur_page.buf, 0, screen_size)?;
                                 }
                                 Err(_) => {
                                     println!("could not find file");
-                                    stdout.execute(cursor::MoveToColumn(0))?;
                                 }
                             }
+                            stdout.execute(cursor::MoveToColumn(0))?;
                         }
                         KeyCode::Char('g') => {
                             let url = match get_input("goto: ") {
@@ -79,9 +79,9 @@ fn main() -> std::io::Result<()> {
                                 Err(_) => continue
                             };
                             cur_url = url;
-                            cur_buf = go_url(&cur_url)?;
-                            (cur_buf, buf_line_len) = get_processed_page(&cur_buf);
-                            pager(&cur_buf, 0, screen_size)?;
+                            let buf = go_url(&cur_url)?;
+                            cur_page = get_processed_page(&buf);
+                            pager(&cur_page.buf, 0, screen_size)?;
                             stdout.execute(cursor::MoveToColumn(0))?;
                         }
                         KeyCode::Char('d') => {
@@ -89,9 +89,9 @@ fn main() -> std::io::Result<()> {
                                 Ok(s) => s,
                                 Err(_) => continue
                             };
-                            cur_buf = post(&cur_url, &data)?;
-                            (cur_buf, buf_line_len) = get_processed_page(&cur_buf);
-                            pager(&cur_buf, 0, screen_size)?;
+                            let buf = post(&cur_url, &data)?;
+                            cur_page = get_processed_page(&buf);
+                            pager(&cur_page.buf, 0, screen_size)?;
                             stdout.execute(cursor::MoveToColumn(0))?;
                         }
                         KeyCode::Char('m') => {
@@ -105,12 +105,28 @@ fn main() -> std::io::Result<()> {
                                 Ok(s) => s,
                                 Err(_) => continue
                             };
-                            cur_buf = go_url(&cur_url)?;
-                            (cur_buf, buf_line_len) = get_processed_page(&cur_buf);
-                            pager(&cur_buf, 0, screen_size)?;
+                            let buf = go_url(&cur_url)?;
+                            let page = get_processed_page(&buf);
+                            pager(&page.buf, 0, screen_size)?;
                             stdout.execute(cursor::MoveToColumn(0))?;
                         }
-                    _ => ()
+                        KeyCode::Char('a') => {
+                            let Ok(s) = get_input("anchor(index): ") else { continue };
+                            let Ok(index) = s.parse::<usize>() else { continue };
+                            let Some(url) = cur_page.anchors.get(index) else { continue; };
+                            let url = if url.starts_with('/') {
+                                let mut mod_url = url.to_owned();
+                                mod_url.insert_str(0, &cur_url);
+                                mod_url
+                            } else {
+                                url.to_string()
+                            };
+                            let buf = go_url(&url)?;
+                            cur_page = get_processed_page(&buf);
+                            pager(&cur_page.buf, 0, screen_size)?;
+                            stdout.execute(cursor::MoveToColumn(0))?;
+                        }
+                        _ => ()
                     }
                 } else {
                     match ev.code {
@@ -119,9 +135,9 @@ fn main() -> std::io::Result<()> {
                                 Ok(s) => s,
                                 Err(_) => continue
                             };
-                            cur_buf = go_url(&cur_url)?;
-                            (cur_buf, buf_line_len) = get_processed_page(&cur_buf);
-                            pager(&cur_buf, 0, screen_size)?;
+                            let buf = go_url(&cur_url)?;
+                            cur_page = get_processed_page(&buf);
+                            pager(&cur_page.buf, 0, screen_size)?;
                             stdout.execute(cursor::MoveToColumn(0))?;
                         }
                         _ => ()
@@ -316,6 +332,10 @@ fn go_url(url: &String) -> io::Result<String> {
     stdout.execute(cursor::MoveTo(0, 0))?;
     stdout.execute(Clear(ClearType::All))?;
     disable_raw_mode()?;
+
+    if url.starts_with('/') {
+        // url.insert_str
+    }
     println!("{}", url);
     let mut curl = Command::new("curl");
     curl.args(["-#", "-L", &url]);
@@ -353,10 +373,18 @@ fn post(url: &String, data: &str) -> io::Result<String> {
     Ok(page.to_string())
 }
 
-fn get_processed_page(page: &str) -> (String, usize) {
+struct ProcessedPage {
+    buf: String,
+    line_count: usize,
+    anchors: Vec<String>,
+}
+
+fn get_processed_page(page: &str) -> ProcessedPage {
     let curl_out = page.replace("&nbsp;", "\u{A0}");
     let curl_out = curl_out.replace("&quot;", "\"");
     let mut iter = curl_out.split(|c| c == '<');
+
+    let mut anchors: Vec<String> = vec![];
 
     let mut input_group = false;
     let mut buf = String::new();
@@ -367,17 +395,17 @@ fn get_processed_page(page: &str) -> (String, usize) {
                 writeln!(&mut buf).unwrap();
             }
             input_group = cur_input_group;
-            write_elem(i, &mut buf);
+            write_elem(i, &mut buf, &mut anchors);
         } else {
             if input_group { writeln!(&mut buf).unwrap(); }
             break;
         }
     }
     let count = buf.lines().count();
-    (buf, count)
+    ProcessedPage{ buf, line_count: count, anchors }
 }
 
-fn write_elem(s: &str, buf: &mut String) {
+fn write_elem(s: &str, buf: &mut String, anchors: &mut Vec<String>) {
     if s.starts_with("br>") {
         writeln!(buf).unwrap();
     } else if s.starts_with("p>") {
@@ -387,11 +415,11 @@ fn write_elem(s: &str, buf: &mut String) {
         writeln!(buf).unwrap();
     } else if s.starts_with("input") {
         if let Some(name) = get_attr(s, "name") {
-            write!(buf, "{{{}", name).unwrap();
+            write!(buf, "__{}", name).unwrap();
             if let Some(attr) = get_attr(s, "value") {
                 write!(buf, "={}", attr).unwrap();
             }
-            write!(buf, "}}").unwrap();
+            write!(buf, "__").unwrap();
         }
         print_rest(s, buf);
     } else if s.starts_with("b>") {
@@ -410,13 +438,14 @@ fn write_elem(s: &str, buf: &mut String) {
     } else if s.starts_with("tr") {
         writeln!(buf).unwrap();
     } else if s.starts_with("a ") {
-        write!(buf, "[").unwrap();
-        print_rest(s, buf);
-        write!(buf, "]").unwrap();
         if let Some(a) = get_attr(s, "href") {
+            write!(buf, "[{}: ", anchors.len()).unwrap();
+            print_rest(s, buf);
+            write!(buf, "]").unwrap();
             write!(buf, "(").unwrap();
             write!(buf, "{}", a).unwrap();
             write!(buf, ")").unwrap();
+            anchors.push(a.to_owned());
         }
     } else {
         print_rest(s, buf);
