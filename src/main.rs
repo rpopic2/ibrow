@@ -51,16 +51,16 @@ fn main() -> std::io::Result<()> {
                 match ev.code {
                     KeyCode::Char('c') => break,
                     KeyCode::Char('e') => {
-                        // cur_line = cur_line
-                            // .saturating_add(1)
-                            // .clamp(0, (history.current().line_count as u16) - 1);
-                        // pager::pager(&history.current().buf, cur_line)?;
-                        stdout.execute(terminal::ScrollUp(1))?;
+                        cur_line = cur_line
+                            .saturating_add(1)
+                            .clamp(0, (history.current().line_count as u16) - 1);
+                        pager::pager(&history.current().buf, cur_line)?;
+                        // stdout.execute(terminal::ScrollUp(1))?;
                     }
                     KeyCode::Char('y') => {
                         cur_line = cur_line.saturating_sub(1);
                         pager::pager(&history.current().buf, cur_line)?;
-                        stdout.execute(terminal::ScrollDown(1))?;
+                        // stdout.execute(terminal::ScrollDown(1))?;
                     }
                     KeyCode::Char('f') => {
                         cur_line = cur_line
