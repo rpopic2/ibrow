@@ -6,6 +6,7 @@ use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::ExecutableCommand;
 use input::*;
 use page::*;
+use history::*;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{self, Read};
@@ -15,26 +16,7 @@ use std::time::Duration;
 mod input;
 mod page;
 mod pager;
-
-struct History {
-    pages: Vec<Page>,
-}
-
-impl History {
-    fn new() -> History {
-        let mut pages = Vec::new();
-        pages.push(Page::new());
-        History { pages }
-    }
-
-    fn last(&self) -> &Page {
-        self.pages.last().unwrap()
-    }
-
-    fn push(&mut self, page: Page) {
-        self.pages.push(page);
-    }
-}
+mod history;
 
 fn main() -> std::io::Result<()> {
     let mut stdout = std::io::stdout();
@@ -68,27 +50,35 @@ fn main() -> std::io::Result<()> {
                     KeyCode::Char('e') => {
                         cur_line = cur_line
                             .saturating_add(1)
-                            .clamp(0, (history.last().line_count as u16) - 1);
-                        pager::pager(&history.last().buf, cur_line)?;
+                            .clamp(0, (history.current().line_count as u16) - 1);
+                        pager::pager(&history.current().buf, cur_line)?;
                     }
                     KeyCode::Char('y') => {
                         cur_line = cur_line.saturating_sub(1);
-                        pager::pager(&history.last().buf, cur_line)?;
+                        pager::pager(&history.current().buf, cur_line)?;
                     }
                     KeyCode::Char('f') => {
                         cur_line = cur_line
                             .saturating_add(screen_size.1 / 2)
-                            .clamp(0, history.last().line_count as u16 - 1);
-                        pager::pager(&history.last().buf, cur_line)?;
+                            .clamp(0, history.current().line_count as u16 - 1);
+                        pager::pager(&history.current().buf, cur_line)?;
                     }
                     KeyCode::Char('b') => {
                         cur_line = cur_line.saturating_sub(screen_size.1 / 2);
-                        pager::pager(&history.last().buf, cur_line)?;
+                        pager::pager(&history.current().buf, cur_line)?;
+                    }
+                    KeyCode::Char('o') => {
+                        history.prev();
+                        pager::pager(&history.current().buf, 0).unwrap();
                     }
                     _ => (),
                 }
             } else if ev.modifiers == KeyModifiers::NONE {
                 match ev.code {
+                    KeyCode::Tab => {
+                        history.next();
+                        pager::pager(&history.current().buf, 0).unwrap();
+                    }
                     KeyCode::Char('f') => {
                         let path = match get_input("files: ") {
                             Ok(s) => s,
@@ -118,14 +108,8 @@ fn main() -> std::io::Result<()> {
                         let Ok(data) = get_input("data: ") else {
                             continue;
                         };
-                        let buf = post(&history.last().url, &data)?;
+                        let buf = post(&history.current().url, &data)?;
                         history.push(get_processed_page(&buf));
-                    }
-                    KeyCode::Char('m') => {
-                        bookmark = match get_input_with("bookmark: ", Some(&history.last().url)) {
-                            Ok(s) => s,
-                            Err(_) => continue,
-                        }
                     }
                     KeyCode::Char('`') => {
                         let url = match get_input_with("goto: ", Some(&bookmark)) {
@@ -136,18 +120,18 @@ fn main() -> std::io::Result<()> {
                         history.push(get_processed_page(&buf));
                     }
                     KeyCode::Char('a') => {
-                        let Ok(s) = get_input("anchor(index): ") else {
+                        let Ok(s) = get_input("anchor index: ") else {
                             continue;
                         };
                         let Ok(index) = s.parse::<usize>() else {
                             continue;
                         };
-                        let Some(url) = history.last().anchors.get(index) else {
+                        let Some(url) = history.current().anchors.get(index) else {
                             continue;
                         };
                         let url = if url.starts_with('/') {
                             let mut mod_url = url.to_owned();
-                            mod_url.insert_str(0, &history.last().url);
+                            mod_url.insert_str(0, &history.current().url);
                             mod_url
                         } else {
                             url.to_string()
@@ -160,7 +144,7 @@ fn main() -> std::io::Result<()> {
             } else {
                 match ev.code {
                     KeyCode::Char('G') => {
-                        let url = match get_input_with("goto: ", Some(&history.last().url)) {
+                        let url = match get_input_with("goto: ", Some(&history.current().url)) {
                             Ok(s) => s,
                             Err(_) => continue,
                         };
