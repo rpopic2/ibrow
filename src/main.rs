@@ -216,3 +216,4 @@ where
     enable_raw_mode()?;
     Ok(curl_out)
 }
+

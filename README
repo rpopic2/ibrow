@@ -1,11 +1,12 @@
-ibrow: internet browser
+ibrow: the internet browser
 by rpopic
 
-a minimalistic html browser based on cURL
+a minimalistic browser based on cURL
 
 
 requirements:
 curl installed on your system
+cross platform
 
 
 keys:
@@ -19,6 +20,9 @@ do(w)nload url
 send data and do(W)nload
 open (f)ile
 
+* anchor at index 4: [4. Example](https://example.com).
+* input field: {q=}
+* press d, and type in q=example to send data to the server.
 * bookmark is saved at $HOME/.ibrowse.conf
 * files will be downloaded/opened baed on pwd
 
