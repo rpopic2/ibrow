@@ -1,22 +1,22 @@
-use crossterm::cursor;
+use crossterm::{cursor, QueueableCommand};
 use crossterm::event::{poll, read, Event, KeyCode, KeyModifiers};
 use crossterm::terminal::{self, Clear, ClearType};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::ExecutableCommand;
+use history::*;
 use input::*;
 use page::*;
-use history::*;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{self, Read};
 use std::process::Command;
 use std::time::Duration;
 
+mod history;
 mod input;
 mod page;
 mod pager;
-mod history;
 
 fn main() -> std::io::Result<()> {
     let mut stdout = std::io::stdout();
@@ -27,7 +27,7 @@ fn main() -> std::io::Result<()> {
     let mut history: History = History::new();
 
     let mut bookmark_path = home::home_dir().unwrap();
-    bookmark_path.push("ibrow.conf");
+    bookmark_path.push(".ibrow.conf");
     let bookmark_path = bookmark_path.into_os_string();
     let mut bookmark = String::new();
     if let Ok(mut f) = File::open(&bookmark_path) {
@@ -144,6 +144,12 @@ fn main() -> std::io::Result<()> {
                         let buf = go_url(&url)?;
                         history.push(get_processed_page(&buf));
                     }
+                    KeyCode::Char('w') => {
+                        let Ok(s) = get_input_with("download: ", Some(&history.current().url)) else {
+                            continue;
+                        };
+                        curl(["-LO", &s])?;
+                    }
                     _ => (),
                 }
             } else {
@@ -155,6 +161,14 @@ fn main() -> std::io::Result<()> {
                         };
                         let buf = go_url(&url)?;
                         history.push(get_processed_page(&buf));
+                    }
+                    KeyCode::Char('W') => {
+                        stdout.queue(cursor::MoveTo(0, 1))?;
+                        print!("{}", &history.current().url);
+                        let Ok(s) = get_input("data and download: ") else {
+                            continue;
+                        };
+                        curl(["-LO", &history.current().url, "-d", &s])?;
                     }
                     _ => (),
                 }

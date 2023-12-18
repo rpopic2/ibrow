@@ -8,10 +8,10 @@ use crossterm::{
 
 pub fn pager(buf: &String, line: u16) -> io::Result<()> {
     let mut stdout = io::stdout();
-    stdout.execute(cursor::SavePosition)?;
-    stdout.execute(cursor::MoveToColumn(0))?;
-    stdout.execute(cursor::MoveToRow(0))?;
-    stdout.execute(Clear(ClearType::FromCursorDown))?;
+    stdout.queue(cursor::SavePosition)?;
+    stdout.queue(cursor::MoveToColumn(0))?;
+    stdout.queue(cursor::MoveToRow(0))?;
+    stdout.queue(Clear(ClearType::FromCursorDown))?;
     disable_raw_mode()?;
 
     let (screen_width, screen_height) = terminal::size()?;
@@ -40,4 +40,3 @@ pub fn pager(buf: &String, line: u16) -> io::Result<()> {
     enable_raw_mode()?;
     Ok(())
 }
-

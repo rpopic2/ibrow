@@ -17,8 +17,9 @@ impl History {
     }
 
     pub fn push(&mut self, page: Page) {
-        self.pages.push(page);
         self.head += 1;
+        self.pages.truncate(self.head);
+        self.pages.push(page);
     }
 
     pub fn prev(&mut self) {
