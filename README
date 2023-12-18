@@ -1,5 +1,37 @@
 ibrow: internet browser
 by rpopic
 
-a minimalistic html stripper
+a minimalistic html browser based on cURL
+
+
+requirements:
+curl installed on your system
+
+
+keys:
+(g)oto url
+(G)oto w/ current url
+follow (a)nchor (input index to follow)
+send (d)ata
+set book(m)ark
+(`)load bookmark and goto
+do(w)nload url
+send data and do(W)nload
+open (f)ile
+
+* bookmark is saved at $HOME/.ibrowse.conf
+* files will be downloaded/opened baed on pwd
+
+(^c) exit
+(^e) scroll down
+(^y) scroll up
+(^f) scroll down pageful
+(^b) scroll up pageful
+(^o) back in the history
+(^i) forward in the history
+
+url mode keys:
+basic emacs-like url editing is supported.
+(c-c|esc) cancel
+(c-i) execute ls
 

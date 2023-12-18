@@ -1,16 +1,16 @@
-use crossterm::{cursor, QueueableCommand};
 use crossterm::event::{poll, read, Event, KeyCode, KeyModifiers};
 use crossterm::terminal::{self, Clear, ClearType};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::ExecutableCommand;
+use crossterm::{cursor, QueueableCommand};
 use history::*;
 use input::*;
 use page::*;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{self, Read};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::time::Duration;
 
 mod history;
@@ -145,7 +145,8 @@ fn main() -> std::io::Result<()> {
                         history.push(get_processed_page(&buf));
                     }
                     KeyCode::Char('w') => {
-                        let Ok(s) = get_input_with("download: ", Some(&history.current().url)) else {
+                        let Ok(s) = get_input_with("download: ", Some(&history.current().url))
+                        else {
                             continue;
                         };
                         curl(["-LO", &s])?;
@@ -207,6 +208,7 @@ where
 
     let mut curl = Command::new("curl");
     curl.args(args);
+    curl.stderr(Stdio::inherit());
     let curl_out = curl.output().expect("curl error");
     println!("{}", std::str::from_utf8(&curl_out.stderr).unwrap());
     let curl_out = String::from_utf8(curl_out.stdout).expect("utf8 error");
