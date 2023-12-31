@@ -75,11 +75,21 @@ fn write_elem(s: &str, buf: &mut String, anchors: &mut Vec<String>) {
             write!(buf, "__").unwrap();
         }
         print_rest(s, buf);
+        writeln!(buf).unwrap();
     } else if s.starts_with("b>") {
         if let Some(tag_end) = s.find('>') {
             let text = s.get(tag_end + 1..).unwrap();
             if !text.is_empty() {
                 write!(buf, "{}", text.bold()).unwrap();
+            }
+        } else {
+            write!(buf, "{}", s.bold()).unwrap();
+        }
+    } else if s.starts_with("i>") {
+        if let Some(tag_end) = s.find('>') {
+            let text = s.get(tag_end + 1..).unwrap();
+            if !text.is_empty() {
+                write!(buf, "{}", text.italic()).unwrap();
             }
         } else {
             write!(buf, "{}", s.bold()).unwrap();
@@ -98,6 +108,9 @@ fn write_elem(s: &str, buf: &mut String, anchors: &mut Vec<String>) {
             write!(buf, ")").unwrap();
             anchors.push(a.to_owned());
         }
+    } else if s.starts_with("span") || s.starts_with("h2") {
+        print_rest(s, buf);
+        writeln!(buf).unwrap();
     } else {
         print_rest(s, buf);
     }
@@ -106,7 +119,10 @@ fn write_elem(s: &str, buf: &mut String, anchors: &mut Vec<String>) {
 fn print_rest(s: &str, buf: &mut String) {
     if let Some(tag_end) = s.find('>') {
         let tag_end = tag_end + 1;
-        let text = s.get(tag_end..).unwrap().split_terminator(&['\n', '\r']);
+        let text = s
+            .get(tag_end..)
+            .unwrap()
+            .split_terminator(&['\n', '\r', '\t']);
         for s in text {
             write!(buf, "{}", s).unwrap();
         }
@@ -139,4 +155,3 @@ fn get_attr<'a>(input: &'a str, attr: &'a str) -> Option<&'a str> {
         None
     }
 }
-

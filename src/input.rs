@@ -100,7 +100,7 @@ pub fn get_input_with(prompt: &str, start_val: Option<&str>) -> io::Result<Strin
                     _ => (),
                 }
                 continue;
-            } else if e.modifiers == KeyModifiers::CONTROL || e.modifiers == KeyModifiers::SHIFT {
+            } else if e.modifiers == KeyModifiers::CONTROL {
                 match e.code {
                     KeyCode::Char('j') | KeyCode::Char('m') => break,
                     KeyCode::Char('c') => {
@@ -151,4 +151,3 @@ pub fn get_input_with(prompt: &str, start_val: Option<&str>) -> io::Result<Strin
     }
     Ok(buf)
 }
-

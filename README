@@ -5,8 +5,8 @@ a minimalistic browser based on cURL
 
 
 requirements:
-curl installed on your system
-cross platform
+* curl installed on your system
+* is cross platform
 
 
 keys:
@@ -20,12 +20,6 @@ do(w)nload url
 send data and do(W)nload
 open (f)ile
 
-* anchor at index 4: [4. Example](https://example.com).
-* input field: {q=}
-* press d, and type in q=example to send data to the server.
-* bookmark is saved at $HOME/.ibrowse.conf
-* files will be downloaded/opened baed on pwd
-
 (^c) exit
 (^e) scroll down
 (^y) scroll up
@@ -33,6 +27,13 @@ open (f)ile
 (^b) scroll up pageful
 (^o) back in the history
 (^i) forward in the history
+
+* anchor at index 4: [4. Example](https://example.com).
+* input field: {q=}
+* press d, and type in q=example to send data to the server.
+* bookmark is saved at $HOME/.ibrow.conf
+* files will be downloaded/opened baed on pwd
+
 
 url mode keys:
 basic emacs-like url editing is supported.

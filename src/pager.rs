@@ -40,4 +40,3 @@ pub fn pager(buf: &String, line: u16) -> io::Result<()> {
     enable_raw_mode()?;
     Ok(())
 }
-

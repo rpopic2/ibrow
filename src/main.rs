@@ -18,6 +18,9 @@ mod input;
 mod page;
 mod pager;
 
+const VERSION: &str = "ibrow/0.1.0";
+const USER_AGENT: &str = "ibrow/0.1.0";
+
 fn main() -> std::io::Result<()> {
     let mut stdout = std::io::stdout();
     stdout.execute(EnterAlternateScreen)?;
@@ -32,6 +35,19 @@ fn main() -> std::io::Result<()> {
     let mut bookmark = String::new();
     if let Ok(mut f) = File::open(&bookmark_path) {
         f.read_to_string(&mut bookmark).unwrap();
+    }
+
+    if let Some(path) = std::env::args().nth(1) {
+        match File::open(path) {
+            Ok(mut file) => {
+                let mut buf = String::new();
+                file.read_to_string(&mut buf)?;
+                history.push(get_processed_page(&buf));
+            }
+            Err(_) => {
+                println!("could not find file");
+            }
+        }
     }
 
     enable_raw_mode()?;
@@ -135,14 +151,27 @@ fn main() -> std::io::Result<()> {
                             continue;
                         };
                         let url = if url.starts_with('/') {
-                            let mut mod_url = url.to_owned();
-                            mod_url.insert_str(0, &history.current().url);
-                            mod_url
+                            let cur_url = &history.current().url;
+                            let proto = cur_url.find("//").unwrap();
+                            let Some(base_end) = cur_url.get(proto + 2..).unwrap().find('/') else {
+                                continue;
+                            };
+                            let start = cur_url.find(' ').unwrap() + 1;
+                            let mut result = cur_url
+                                .get(start..proto + base_end + 2)
+                                .unwrap()
+                                .to_string();
+                            // println!("{}", cur_url);
+                            result.push_str(url);
+                            result
                         } else {
                             url.to_string()
                         };
-                        let buf = go_url(&url)?;
-                        history.push(get_processed_page(&buf));
+                        if let Ok(buf) = go_url(&url) {
+                            history.push(get_processed_page(&buf));
+                        } else {
+                            println!("url: {}", url);
+                        }
                     }
                     KeyCode::Char('w') => {
                         let Ok(s) = get_input_with("download: ", Some(&history.current().url))
@@ -153,6 +182,7 @@ fn main() -> std::io::Result<()> {
                     }
                     _ => (),
                 }
+                cur_line = 0;
             } else {
                 match ev.code {
                     KeyCode::Char('G') => {
@@ -169,7 +199,7 @@ fn main() -> std::io::Result<()> {
                         let Ok(s) = get_input("data and download: ") else {
                             continue;
                         };
-                        curl(["-LO", &history.current().url, "-d", &s])?;
+                        curl(["-LO", &history.current().url, "-d", &s, "-A", USER_AGENT])?;
                     }
                     _ => (),
                 }
@@ -193,7 +223,16 @@ fn go_url(url: &str) -> io::Result<String> {
 
 fn post(url: &str, data: &str) -> io::Result<String> {
     println!("{}, {}", url, data);
-    curl(["-#", "-w %{url_effective}", "-L", url, "-d", data])
+    curl([
+        "-#",
+        "-w %{url_effective}",
+        "-A",
+        "ibrow/0.1.0",
+        "-L",
+        url,
+        "-F",
+        data,
+    ])
 }
 
 fn curl<I, S>(args: I) -> io::Result<String>
@@ -209,11 +248,14 @@ where
     let mut curl = Command::new("curl");
     curl.args(args);
     curl.stderr(Stdio::inherit());
-    let curl_out = curl.output().expect("curl error");
-    println!("{}", std::str::from_utf8(&curl_out.stderr).unwrap());
-    let curl_out = String::from_utf8(curl_out.stdout).expect("utf8 error");
+    let curl = curl.output().expect("curl error");
+    println!("{}", std::str::from_utf8(&curl.stderr).unwrap());
+    let curl_stdout = String::from_utf8(curl.stdout).expect("utf8 error");
+    if !curl.status.success() {
+        enable_raw_mode()?;
+        return Err(io::Error::new(io::ErrorKind::Other, ""));
+    }
 
     enable_raw_mode()?;
-    Ok(curl_out)
+    Ok(curl_stdout)
 }
-
