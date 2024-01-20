@@ -44,6 +44,8 @@ pub fn get_processed_page(page: &str) -> Page {
             break;
         }
     }
+    let buf = buf.replace("&lt;", "<");
+    let buf = buf.replace("&gt;", ">");
     let line_count = buf.lines().count();
     let idx = page.rfind('\n').unwrap();
     let url = page.get(idx + 2..).unwrap_or_default().to_string();
@@ -103,9 +105,9 @@ fn write_elem(s: &str, buf: &mut String, anchors: &mut Vec<String>) {
             write!(buf, "[{}: ", anchors.len()).unwrap();
             print_rest(s, buf);
             write!(buf, "]").unwrap();
-            write!(buf, "(").unwrap();
-            write!(buf, "{}", a).unwrap();
-            write!(buf, ")").unwrap();
+            // write!(buf, "(").unwrap();
+            // write!(buf, "{}", a).unwrap();
+            // write!(buf, ")").unwrap();
             anchors.push(a.to_owned());
         }
     } else if s.starts_with("span") || s.starts_with("h2") {

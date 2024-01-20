@@ -18,7 +18,6 @@ mod input;
 mod page;
 mod pager;
 
-const VERSION: &str = "ibrow/0.1.0";
 const USER_AGENT: &str = "ibrow/0.1.0";
 
 fn main() -> std::io::Result<()> {
